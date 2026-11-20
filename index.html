@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GeoGuessr Grande Florianópolis</title>
+  <meta name="description" content="Descubra onde você está em Palhoça, São José, Florianópolis e região. Um jogo de geografia com cinco rodadas.">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.2/dist/mapillary.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-screen="menu">
+<main id="app">
+
+  <!-- ===================== MENU ===================== -->
+  <section id="screenMenu" class="screen menu">
+    <div class="menu-bg" aria-hidden="true"></div>
+    <div class="menu-card">
+      <div class="brand"><span class="logo-dot"></span><span>GeoGuessr</span></div>
+      <h1>Grande Florianópolis</h1>
+      <p class="lead">Cinco lugares reais de Palhoça, São José, Florianópolis e região. Observe placas, ruas, arquitetura e relevo e descubra onde você está.</p>
+
+      <fieldset class="group">
+        <legend>Dificuldade</legend>
+        <div class="diff-grid">
+          <label class="diff">
+            <input type="radio" name="difficulty" value="facil">
+            <span class="diff-box"><b>Fácil</b><small>Pontos turísticos, avenidas e praias famosas</small></span>
+          </label>
+          <label class="diff">
+            <input type="radio" name="difficulty" value="medio" checked>
+            <span class="diff-box"><b>Médio</b><small>Bairros conhecidos e ruas comerciais</small></span>
+          </label>
+          <label class="diff">
+            <input type="radio" name="difficulty" value="dificil">
+            <span class="diff-box"><b>Difícil</b><small>Ruas residenciais e estradas secundárias</small></span>
+          </label>
+          <label class="diff">
+            <input type="radio" name="difficulty" value="misto">
+            <span class="diff-box"><b>Misto</b><small>De tudo um pouco, em ordem aleatória</small></span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="row">
+        <label class="field">
+          <span>Temporizador</span>
+          <select id="selTimer">
+            <option value="0" selected>Sem limite</option>
+            <option value="60">60 segundos</option>
+            <option value="120">2 minutos</option>
+            <option value="180">3 minutos</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Imagens</span>
+          <select id="selProvider"></select>
+        </label>
+      </div>
+      <p id="providerNote" class="note"></p>
+
+      <button id="btnPlay" class="btn primary big" type="button">Jogar</button>
+      <p id="bestScore" class="best"></p>
+
+      <details class="how">
+        <summary>Como jogar</summary>
+        <ol>
+          <li>Você aparece em um lugar real da Grande Florianópolis. Explore: arraste a imagem e clique nas setas para andar.</li>
+          <li>Abra o mapa (passe o mouse sobre ele, ou toque em “Mapa” no celular) e clique onde acha que está.</li>
+          <li>Confirme em “Fazer palpite”. Quanto mais perto, mais pontos: até 5.000 por rodada, 25.000 no total.</li>
+          <li>Atalhos: <kbd>M</kbd> abre/fecha o mapa, <kbd>Enter</kbd> confirma, <kbd>R</kbd> volta ao ponto inicial.</li>
+        </ol>
+      </details>
+    </div>
+    <p class="credits">Mapas © OpenStreetMap e CARTO · Imagens: Google Street View, Mapillary (CC BY-SA) e Esri</p>
+  </section>
+
+  <!-- ===================== JOGO ===================== -->
+  <section id="screenGame" class="screen game" hidden>
+    <div id="pano" class="pano"></div>
+
+    <div id="loading" class="loading" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loadingText">Procurando um lugar…</p>
+    </div>
+
+    <header class="hud">
+      <div class="chip"><span class="chip-label">Rodada</span><strong id="hudRound">1/5</strong></div>
+      <div class="chip"><span class="chip-label">Nível</span><strong id="hudDiff">Médio</strong></div>
+      <div class="spacer"></div>
+      <div class="chip timer" id="hudTimerWrap" hidden><span class="chip-label">Tempo</span><strong id="hudTimer">02:00</strong></div>
+      <div class="chip score"><span class="chip-label">Pontos</span><strong id="hudScore">0</strong></div>
+    </header>
+
+    <div class="tools">
+      <button id="btnReset" class="btn glass" type="button" title="Voltar ao ponto inicial (R)">↺ Início</button>
+      <button id="btnQuit" class="btn glass" type="button" title="Sair da partida">✕ Sair</button>
+      <span id="sourceBadge" class="badge"></span>
+    </div>
+
+    <aside id="mapPanel" class="map-panel" aria-label="Mapa para o palpite">
+      <div class="map-head">
+        <span>Seu palpite</span>
+        <button id="btnMapToggle" class="icon-btn" type="button" aria-label="Fixar mapa aberto" aria-expanded="false" title="Fixar mapa aberto (M)">⤢</button>
+      </div>
+      <div id="guessMap" class="guess-map"></div>
+      <button id="btnGuess" class="btn primary guess-btn" type="button" disabled>Marque no mapa</button>
+    </aside>
+    <button id="btnMapFab" class="btn primary fab" type="button">🗺 Mapa</button>
+  </section>
+
+  <!-- ===================== RESULTADO DA RODADA ===================== -->
+  <section id="screenResult" class="screen result" hidden>
+    <div id="resultMap" class="result-map"></div>
+    <div id="resultCard" class="result-card">
+      <div class="result-top">
+        <span id="resRound" class="muted">Rodada 1 de 5</span>
+        <span id="resPlace" class="place"></span>
+      </div>
+      <div class="result-score"><span id="resPoints" class="points">0</span><span class="of">/ 5.000</span></div>
+      <div class="bar"><div id="resBar" class="bar-fill"></div></div>
+      <p id="resDistance" class="distance"></p>
+      <p id="resHint" class="hint"></p>
+      <div class="result-total">Total: <strong id="resTotal">0</strong></div>
+      <button id="btnNext" class="btn primary big" type="button">Próxima rodada</button>
+    </div>
+  </section>
+
+  <!-- ===================== RESULTADO FINAL ===================== -->
+  <section id="screenFinal" class="screen final" hidden>
+    <div class="final-grid">
+      <div class="final-card">
+        <p class="muted kicker">Resultado final</p>
+        <div class="final-total"><span id="finTotal">0</span><span class="of">/ 25.000</span></div>
+        <p id="finTitle" class="rank"></p>
+        <p id="finBest" class="best"></p>
+        <div id="finStats" class="stats"></div>
+        <table class="rounds-table">
+          <thead><tr><th>#</th><th>Local</th><th>Distância</th><th>Pontos</th></tr></thead>
+          <tbody id="finRows"></tbody>
+        </table>
+        <div class="actions">
+          <button id="btnAgain" class="btn primary" type="button">Jogar novamente</button>
+          <button id="btnCopy" class="btn glass" type="button">Copiar resultado</button>
+          <button id="btnMenu" class="btn glass" type="button">Menu</button>
+        </div>
+      </div>
+      <div id="finalMap" class="final-map"></div>
+    </div>
+  </section>
+
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="locais.js"></script>
+<script src="core.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
